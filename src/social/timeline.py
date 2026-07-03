@@ -6,6 +6,7 @@ class TimelineManager:
     def __init__(self):
         self._posts: list[tuple[int, int, Action]] = []
         self._next_proposal_id: int = 1
+        self._proposal_author: dict[int, int] = {}
 
     def add_post(self, agent_id: int, turn: int, action: Action) -> None:
         if action.action_type not in (
@@ -15,6 +16,7 @@ class TimelineManager:
             return
         if action.action_type == ActionType.PROPOSE:
             action.proposal_id = self._next_proposal_id
+            self._proposal_author[self._next_proposal_id] = agent_id
             self._next_proposal_id += 1
         self._posts.append((agent_id, turn, action))
 
@@ -52,6 +54,10 @@ class TimelineManager:
                 lines.append(f"  [{action.action_type.name}{target}]: \"{action.content}\"")
         return "\n".join(lines) if lines else "No recent posts."
 
+    def get_proposal_author(self, proposal_id: int) -> int | None:
+        return self._proposal_author.get(proposal_id)
+
     def clear(self) -> None:
         self._posts.clear()
         self._next_proposal_id = 1
+        self._proposal_author.clear()

@@ -9,7 +9,7 @@ class StubProvider(LLMProvider):
     def __init__(self, response: str = '{"action": "DO_NOTHING", "content": "", "rationale": "stub"}'):
         self._response = response
 
-    async def invoke(self, prompt: str) -> str:
+    async def invoke(self, prompt: str, system_prompt: str = "") -> str:
         return self._response
 
 
@@ -57,30 +57,33 @@ class TestAgentManagerParse:
 
 
 class TestAgentManagerBuildPrompt:
-    def test_prompt_contains_agent_info(self):
+    def test_system_prompt_contains_agent_info(self):
         manager = AgentManager(StubProvider())
         agent = _make_agent()
-        prompt = manager._build_prompt(agent, "timeline", "warning")
-        assert str(agent.agent_id) in prompt
-        assert agent.persona_name in prompt
-        assert "alpha=0.2" in prompt
-        assert "beta=0.4" in prompt
-        assert "gamma=0.6" in prompt
-        assert "timeline" in prompt
-        assert ActionType.PROPOSE.name in prompt
+        system = manager._get_system_prompt(agent)
+        assert "alpha=0.2" in system
+        assert "beta=0.4" in system
+        assert "gamma=0.6" in system
 
-    def test_prompt_contains_proposal_id_instruction(self):
+    def test_system_prompt_contains_persona_description(self):
         manager = AgentManager(StubProvider())
         agent = _make_agent()
-        prompt = manager._build_prompt(agent, "timeline", "warning")
-        assert "proposal_id" in prompt
+        system = manager._get_system_prompt(agent)
+        from src.config.personas import SYSTEM_PROMPTS
+        assert SYSTEM_PROMPTS["rational"] in system
 
-    def test_prompt_contains_propose_and_other_formats(self):
+    def test_user_prompt_contains_timeline_and_action_options(self):
         manager = AgentManager(StubProvider())
-        agent = _make_agent()
-        prompt = manager._build_prompt(agent, "timeline", "warning")
-        assert '"action": "PROPOSE"' in prompt
-        assert '"proposal_id":' in prompt
+        user = manager._build_user_prompt("timeline", "warning")
+        assert "timeline" in user
+        assert ActionType.PROPOSE.name in user
+        assert "proposal_id" in user
+        assert 'PROPOSE' in user
+
+    def test_user_prompt_contains_warning(self):
+        manager = AgentManager(StubProvider())
+        user = manager._build_user_prompt("timeline", "warning msg")
+        assert "warning msg" in user
 
 
 @pytest.mark.asyncio

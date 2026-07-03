@@ -9,12 +9,18 @@ from src.social.graph import SocialGraph
 from src.social.timeline import TimelineManager
 from src.agent.engine import OpinionDynamicsEngine
 from src.agent.manager import AgentManager
+from src.agent.llm import LLMProvider
 from src.governance.stub import GovernanceStub
 from src.engine.simulation import SimulationEngine
 from src.analysis.output import OutputManager
 
 
 PERSONA_NAMES = list(PERSONAS.keys())
+
+
+class StubProvider(LLMProvider):
+    async def invoke(self, prompt: str, system_prompt: str = "") -> str:
+        return '{"action": "DO_NOTHING", "content": "", "rationale": "stub"}'
 
 
 def setup_null_engine(n_agents: int, seed: int) -> SimulationEngine:
@@ -59,7 +65,21 @@ def setup_null_engine(n_agents: int, seed: int) -> SimulationEngine:
     return engine
 
 
-def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool) -> SimulationEngine:
+def make_agent_manager(llm_backend: str) -> AgentManager:
+    if llm_backend == "stub":
+        return AgentManager(StubProvider())
+    try:
+        from src.agent.azure_provider import AzureProvider
+        return AgentManager(AzureProvider())
+    except KeyError as e:
+        raise RuntimeError(
+            f"Azure OpenAI not configured: {e}. "
+            f"Set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, "
+            f"and AZURE_OPENAI_DEPLOYMENT env vars, or use --llm stub."
+        )
+
+
+def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool, llm_backend: str) -> SimulationEngine:
     if is_null:
         return setup_null_engine(n_agents, seed)
 
@@ -78,17 +98,8 @@ def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool) -> Simu
     timeline = TimelineManager()
     ode = OpinionDynamicsEngine()
     governance = GovernanceStub()
+    agent_manager = make_agent_manager(llm_backend)
 
-    try:
-        from src.agent.azure_provider import AzureProvider
-        llm = AzureProvider()
-    except (KeyError, ImportError) as e:
-        raise RuntimeError(
-            f"Azure OpenAI not configured. Set AZURE_OPENAI_ENDPOINT, "
-            f"AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT env vars. ({e})"
-        )
-
-    agent_manager = AgentManager(llm)
     return SimulationEngine(state, graph, timeline, agent_manager, governance, ode)
 
 
@@ -100,6 +111,8 @@ async def main():
                         choices=["random", "small-world", "scale-free", "community", "complete"])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--null", action="store_true", help="Run null model")
+    parser.add_argument("--llm", type=str, default="azure", choices=["azure", "stub"],
+                        help="LLM backend (azure or stub)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Output directory for logs (default: logs/)")
     args = parser.parse_args()
@@ -110,9 +123,10 @@ async def main():
         "topology": args.topology,
         "seed": args.seed,
         "null": args.null,
+        "llm": args.llm,
     }
 
-    engine = setup_engine(args.agents, args.topology, args.seed, args.null)
+    engine = setup_engine(args.agents, args.topology, args.seed, args.null, args.llm)
     output = OutputManager(base_dir=args.log_dir)
 
     turn_data_list = await engine.run(args.turns)

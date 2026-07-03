@@ -14,7 +14,7 @@ class StubProvider(LLMProvider):
     def __init__(self):
         self.call_count = 0
 
-    async def invoke(self, prompt: str) -> str:
+    async def invoke(self, prompt: str, system_prompt: str = "") -> str:
         self.call_count += 1
         return '{"action": "DO_NOTHING", "content": "", "rationale": "stub"}'
 

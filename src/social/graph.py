@@ -1,7 +1,9 @@
 import networkx as nx
 import numpy as np
 from typing import Optional
-from src.core.agent import Agent
+from src.core.agent import Agent, Action
+from src.core.action import ActionType
+from src.social.timeline import TimelineManager
 
 
 class SocialGraph:
@@ -74,6 +76,14 @@ class SocialGraph:
     def generate_isolated(self, n_agents: int) -> None:
         self._graph = nx.DiGraph()
         self._graph.add_nodes_from(range(n_agents))
+
+    def update_network(self, action: Action, actor_id: int, timeline: TimelineManager) -> None:
+        if action.action_type in (
+            ActionType.SUPPORT, ActionType.OPPOSE, ActionType.COMMENT, ActionType.VOTE,
+        ) and action.proposal_id is not None:
+            author = timeline.get_proposal_author(action.proposal_id)
+            if author is not None and author != actor_id:
+                self.add_follow(actor_id, author)
 
     def generate_by_topology(self, topology: str, n_agents: int, seed: int) -> None:
         generators = {

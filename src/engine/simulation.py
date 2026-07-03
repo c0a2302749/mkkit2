@@ -76,6 +76,7 @@ class SimulationEngine:
             )
             agent.action_history.append(action)
             self.timeline.add_post(agent.agent_id, turn, action)
+            self.social_graph.update_network(action, agent.agent_id, self.timeline)
             turn_actions.append({
                 "turn": turn,
                 "agent_id": agent.agent_id,

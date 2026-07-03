@@ -1,8 +1,8 @@
 import json
-from typing import Optional
 from src.core.agent import Agent, Action
 from src.core.action import ActionType
 from src.agent.llm import LLMProvider
+from src.config.personas import SYSTEM_PROMPTS
 
 
 ACTION_DESCRIPTIONS = {
@@ -19,35 +19,34 @@ class AgentManager:
     def __init__(self, llm_provider: LLMProvider):
         self._llm = llm_provider
 
-    def _build_prompt(
-        self,
-        agent: Agent,
-        timeline: str,
-        warning: str,
-    ) -> str:
+    def _get_system_prompt(self, agent: Agent) -> str:
+        base = SYSTEM_PROMPTS.get(agent.persona_name, "")
+        return (
+            f"{base}\n\n"
+            f"Your opinion: {agent.opinion:.2f}\n"
+            f"Your risk perception: {agent.risk_perception:.2f}\n"
+            f"Personality: alpha={agent.alpha} (conformity), "
+            f"beta={agent.beta} (risk sensitivity), "
+            f"gamma={agent.gamma} (stance persistence)."
+        )
+
+    def _build_user_prompt(self, timeline: str, warning: str) -> str:
         action_options = "\n".join(
             f"- {a.name}: {ACTION_DESCRIPTIONS[a]}"
             for a in ActionType
         )
-        return f"""You are Agent {agent.agent_id} ({agent.persona_name}).
-Your opinion: {agent.opinion:.2f}
-Your risk perception: {agent.risk_perception:.2f}
-Personality (alpha={agent.alpha}, beta={agent.beta}, gamma={agent.gamma}):
-- alpha: tendency to follow social opinion
-- beta: sensitivity to risk
-- gamma: resistance to changing initial opinion
-
-Warning: {warning}
-
-Your timeline:
-{timeline}
-
-Choose an action from:
-{action_options}
-
-Respond in JSON format:
-For PROPOSE: {{"action": "PROPOSE", "content": "your proposal", "rationale": "reasoning"}}
-For other actions: {{"action": "ACTION_NAME", "content": "message", "proposal_id": TARGET_ID, "rationale": "reasoning"}}"""
+        parts = []
+        if warning:
+            parts.append(f"System warning: {warning}")
+        parts.append(f"Your timeline:\n{timeline}")
+        parts.append("Choose an action from:\n" + action_options)
+        parts.append(
+            "Respond in JSON format:\n"
+            'For PROPOSE: {"action": "PROPOSE", "content": "your proposal", "rationale": "reasoning"}\n'
+            'For other actions: {"action": "ACTION_NAME", "content": "message", '
+            '"proposal_id": TARGET_ID, "rationale": "reasoning"}'
+        )
+        return "\n\n".join(parts)
 
     async def decide_action(
         self,
@@ -55,8 +54,9 @@ For other actions: {{"action": "ACTION_NAME", "content": "message", "proposal_id
         timeline: str,
         warning: str = "",
     ) -> Action:
-        prompt = self._build_prompt(agent, timeline, warning)
-        response = await self._llm.invoke(prompt)
+        system_prompt = self._get_system_prompt(agent)
+        user_prompt = self._build_user_prompt(timeline, warning)
+        response = await self._llm.invoke(user_prompt, system_prompt=system_prompt)
         return self._parse_response(response)
 
     @staticmethod
