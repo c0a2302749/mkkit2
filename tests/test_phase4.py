@@ -55,6 +55,24 @@ class TestAgentManagerParse:
         action = AgentManager._parse_response(response)
         assert action.proposal_id is None
 
+    def test_parse_array_json(self):
+        response = '[{"action": "PROPOSE", "content": "plan B", "rationale": "better"}]'
+        action = AgentManager._parse_response(response)
+        assert action.action_type == ActionType.PROPOSE
+        assert action.content == "plan B"
+
+    def test_parse_markdown_codeblock(self):
+        response = '```json\n{"action": "SUPPORT", "content": "+1", "proposal_id": 1, "rationale": "agree"}\n```'
+        action = AgentManager._parse_response(response)
+        assert action.action_type == ActionType.SUPPORT
+        assert action.proposal_id == 1
+
+    def test_parse_multi_vote(self):
+        response = '{"action": "VOTE", "votes": [{"proposal_id": 1, "vote": "yes"}, {"proposal_id": 2, "vote": "no"}], "rationale": "done"}'
+        action = AgentManager._parse_response(response)
+        assert action.action_type == ActionType.VOTE
+        assert action.votes == [{"proposal_id": 1, "vote": "yes"}, {"proposal_id": 2, "vote": "no"}]
+
 
 class TestAgentManagerBuildPrompt:
     def test_prompt_contains_agent_info(self):

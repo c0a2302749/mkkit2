@@ -36,8 +36,18 @@ class TimelineManager:
             and aid in followees and t >= turn - window
         ]
 
+    def get_all_proposals(self, turn: int, window: int = 3) -> list[tuple[int, int, Action]]:
+        return [
+            (aid, pid, action)
+            for aid, t, action in self._posts
+            if action.action_type == ActionType.PROPOSE
+            and action.proposal_id is not None
+            and t >= turn - window
+            for pid in [action.proposal_id]
+        ]
+
     def get_timeline(self, agent: Agent, followees: list[int], turn: int) -> str:
-        proposals = self.get_proposals_with_ids(followees, turn)
+        proposals = self.get_all_proposals(turn)
         discussions = self.get_recent_discussion(followees, turn)
 
         lines = []

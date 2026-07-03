@@ -49,6 +49,8 @@ class OpinionDynamicsEngine:
         beta: float,
         gamma: float,
         O_0: float,
+        noise_std: float = 0.0,
     ) -> float:
-        delta = alpha * S_O - beta * R - gamma * (O - O_0)
+        noise = np.random.normal(0.0, noise_std) if noise_std > 0.0 else 0.0
+        delta = alpha * S_O - beta * R - gamma * (O - O_0) + noise
         return np.clip(O + delta, 0.0, 1.0)
