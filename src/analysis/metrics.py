@@ -121,3 +121,55 @@ class Statistics:
         final_means = [np.mean([a.opinion for a in run]) for run in run_results]
         return float(np.var(final_means))
 
+    @staticmethod
+    def compute_decision_summary(proposals: list) -> dict:
+        resolved = [p for p in proposals if p.status.name != "OPEN"]
+        passed = [p for p in resolved if p.status.name == "PASSED"]
+        failed = [p for p in resolved if p.status.name == "FAILED"]
+        return {
+            "total_proposals": len(proposals),
+            "resolved": len(resolved),
+            "passed": len(passed),
+            "failed": len(failed),
+            "avg_turns_to_resolution": (
+                float(np.mean([p.turn_resolved for p in resolved]))
+                if resolved else None
+            ),
+            "min_turn_resolved": min(p.turn_resolved for p in resolved) if resolved else None,
+        }
+
+    @staticmethod
+    def compute_agreement_rate(proposal) -> float:
+        total = len(proposal.votes_for) + len(proposal.votes_against)
+        if total == 0:
+            return 0.0
+        return max(len(proposal.votes_for), len(proposal.votes_against)) / total
+
+    @staticmethod
+    def compute_participation_rate(agents: list, proposals: list) -> float:
+        voter_ids: set[int] = set()
+        for p in proposals:
+            voter_ids.update(p.votes_for)
+            voter_ids.update(p.votes_against)
+        return len(voter_ids) / len(agents) if agents else 0.0
+
+    @staticmethod
+    def compute_vote_opinion_alignment(agents: list, proposals: list) -> float:
+        aligned = 0
+        total = 0
+        for p in proposals:
+            if p.status.name == "OPEN":
+                continue
+            agent_map = {a.agent_id: a for a in agents}
+            for aid in p.votes_for:
+                agent = agent_map.get(aid)
+                if agent and agent.opinion >= 0.5:
+                    aligned += 1
+                total += 1
+            for aid in p.votes_against:
+                agent = agent_map.get(aid)
+                if agent and agent.opinion < 0.5:
+                    aligned += 1
+                total += 1
+        return aligned / total if total > 0 else 0.0
+

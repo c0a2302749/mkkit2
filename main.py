@@ -43,7 +43,7 @@ def setup_null_engine(n_agents: int, seed: int) -> SimulationEngine:
         def __init__(self):
             self._ode = ode
 
-        async def decide_action(self, agent, timeline_str, warning=""):
+        async def decide_action(self, agent, timeline_str, warning="", current_turn=0, total_turns=0):
             s_o, s_r = self._ode.compute_social_signals(agent, graph)
             new_r = self._ode.update_risk_perception(
                 R=agent.risk_perception, W=0.0, S_R=0.0,
@@ -126,12 +126,14 @@ async def main():
         "llm": args.llm,
     }
 
-    engine = setup_engine(args.agents, args.topology, args.seed, args.null, args.llm)
+    engine = setup_engine(args.agents, args.topology, args.seed, args.null)
+    engine.state.total_turns = args.turns
     output = OutputManager(base_dir=args.log_dir)
 
-    turn_data_list = await engine.run(args.turns)
-
-    for data in turn_data_list:
+    turn_data_list = []
+    for turn_num in range(1, args.turns + 1):
+        data = await engine.run_turn()
+        turn_data_list.append(data)
         output.record_turn(
             turn=data["turn"],
             agents=engine.state.agents,
@@ -139,8 +141,12 @@ async def main():
             social_signals=data["social_signals"],
             config=config,
         )
+        resolved = sum(1 for p in engine.state.proposals if p.status.name != "OPEN")
+        n_actions = len(data["actions"])
+        print(f"\rTurn {turn_num}/{args.turns} | actions={n_actions} proposals={len(engine.state.proposals)} resolved={resolved}", end="", flush=True)
+    print()
 
-    run_dir = output.save_all(config)
+    run_dir = output.save_all(config, engine.state.proposals)
 
     print(f"Results saved to: {run_dir}")
     for agent in engine.state.agents:

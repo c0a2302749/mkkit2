@@ -74,3 +74,54 @@ class TestStatistics:
         run2 = [_make_agent(i, 0.7) for i in range(4)]
         var = Statistics.compute_inter_run_variance([run1, run2])
         assert var > 0
+
+
+class TestDecisionMetrics:
+    def test_decision_summary_no_proposals(self):
+        from src.core.proposal import Proposal, ProposalStatus
+        summary = Statistics.compute_decision_summary([])
+        assert summary["total_proposals"] == 0
+        assert summary["resolved"] == 0
+
+    def test_decision_summary_with_resolved(self):
+        from src.core.proposal import Proposal, ProposalStatus
+        proposals = [
+            Proposal(proposal_id=1, agent_id=0, content="a", turn_created=1,
+                     status=ProposalStatus.PASSED, votes_for=[0, 1], votes_against=[2],
+                     turn_resolved=3),
+            Proposal(proposal_id=2, agent_id=1, content="b", turn_created=2,
+                     status=ProposalStatus.OPEN),
+        ]
+        summary = Statistics.compute_decision_summary(proposals)
+        assert summary["total_proposals"] == 2
+        assert summary["resolved"] == 1
+        assert summary["passed"] == 1
+        assert summary["failed"] == 0
+        assert summary["min_turn_resolved"] == 3
+
+    def test_agreement_rate(self):
+        from src.core.proposal import Proposal, ProposalStatus
+        prop = Proposal(proposal_id=1, agent_id=0, content="x", turn_created=1,
+                        status=ProposalStatus.PASSED, votes_for=[0, 1], votes_against=[2])
+        rate = Statistics.compute_agreement_rate(prop)
+        assert rate == pytest.approx(2/3)
+
+    def test_participation_rate(self):
+        from src.core.proposal import Proposal, ProposalStatus
+        proposals = [
+            Proposal(proposal_id=1, agent_id=0, content="x", turn_created=1,
+                     status=ProposalStatus.PASSED, votes_for=[0, 1], votes_against=[2]),
+        ]
+        agents = [_make_agent(i, 0.5) for i in range(5)]
+        rate = Statistics.compute_participation_rate(agents, proposals)
+        assert rate == pytest.approx(3/5)
+
+    def test_vote_opinion_alignment(self):
+        from src.core.proposal import Proposal, ProposalStatus
+        agents = [_make_agent(0, 0.8), _make_agent(1, 0.7), _make_agent(2, 0.2)]
+        proposals = [
+            Proposal(proposal_id=1, agent_id=0, content="x", turn_created=1,
+                     status=ProposalStatus.PASSED, votes_for=[0, 1], votes_against=[2]),
+        ]
+        alignment = Statistics.compute_vote_opinion_alignment(agents, proposals)
+        assert alignment == 1.0

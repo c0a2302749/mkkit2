@@ -49,6 +49,7 @@ PERSONAS: dict[str, dict] = {
         "bias": -0.1,
         "w_sys": 0.5,
         "w_sns": 0.5,
+        "initial_opinion": 0.5,
     },
     "conformist": {
         "persona_name": "conformist",
@@ -59,6 +60,7 @@ PERSONAS: dict[str, dict] = {
         "bias": 0.0,
         "w_sys": 0.3,
         "w_sns": 0.7,
+        "initial_opinion": 0.5,
     },
     "information_seeker": {
         "persona_name": "information_seeker",
@@ -69,6 +71,7 @@ PERSONAS: dict[str, dict] = {
         "bias": 0.0,
         "w_sys": 0.4,
         "w_sns": 0.6,
+        "initial_opinion": 0.45,
     },
     "risk_overestimator": {
         "persona_name": "risk_overestimator",
@@ -79,6 +82,7 @@ PERSONAS: dict[str, dict] = {
         "bias": 0.3,
         "w_sys": 0.6,
         "w_sns": 0.4,
+        "initial_opinion": 0.3,
     },
     "skeptic": {
         "persona_name": "skeptic",
@@ -89,6 +93,7 @@ PERSONAS: dict[str, dict] = {
         "bias": -0.2,
         "w_sys": 0.5,
         "w_sns": 0.5,
+        "initial_opinion": 0.5,
     },
     "agitator": {
         "persona_name": "agitator",
@@ -99,12 +104,14 @@ PERSONAS: dict[str, dict] = {
         "bias": -0.3,
         "w_sys": 0.4,
         "w_sns": 0.6,
+        "initial_opinion": 0.8,
     },
 }
 
 
-def create_agent(agent_id: int, persona_name: str, initial_opinion: float = 0.5) -> Agent:
+def create_agent(agent_id: int, persona_name: str, initial_opinion: float | None = None) -> Agent:
     params = PERSONAS[persona_name].copy()
+    op = params["initial_opinion"] if initial_opinion is None else initial_opinion
     return Agent(
         agent_id=agent_id,
         persona_name=params["persona_name"],
@@ -115,7 +122,7 @@ def create_agent(agent_id: int, persona_name: str, initial_opinion: float = 0.5)
         bias=params["bias"],
         w_sys=params["w_sys"],
         w_sns=params["w_sns"],
-        opinion=initial_opinion,
-        initial_opinion=initial_opinion,
+        opinion=op,
+        initial_opinion=op,
         risk_perception=0.5,
     )

@@ -2,6 +2,7 @@ import csv
 import json
 import os
 from datetime import datetime
+from src.analysis.metrics import Statistics
 
 
 class OutputManager:
@@ -54,7 +55,7 @@ class OutputManager:
             "avg_risk": round(sum(risks) / n, 4) if n else 0.0,
         })
 
-    def save_all(self, config: dict) -> str:
+    def save_all(self, config: dict, proposals: list | None = None) -> str:
         actions_path = os.path.join(self._run_dir, "actions.json")
         with open(actions_path, "w", encoding="utf-8") as f:
             json.dump(self._actions, f, ensure_ascii=False, indent=2)
@@ -81,6 +82,24 @@ class OutputManager:
             "n_turns": max(s["turn"] for s in self._statistics) if self._statistics else 0,
             "final_statistics": self._statistics[-1] if self._statistics else {},
         }
+
+        if proposals:
+            dec = Statistics.compute_decision_summary(proposals)
+            summary["decisions"] = dict(dec)
+            summary["decisions"]["proposal_details"] = [
+                {
+                    "id": p.proposal_id,
+                    "proposer": p.agent_id,
+                    "content": p.content[:80] + "..." if len(p.content) > 80 else p.content,
+                    "status": p.status.name,
+                    "turn_created": p.turn_created,
+                    "votes_for": len(p.votes_for),
+                    "votes_against": len(p.votes_against),
+                    "turn_resolved": p.turn_resolved,
+                }
+                for p in proposals
+            ]
+
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
 

@@ -8,6 +8,7 @@ class Action:
     content: str = ""
     rationale: str = ""
     proposal_id: int | None = None
+    votes: list[dict] | None = None
 
 
 @dataclass

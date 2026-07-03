@@ -6,11 +6,11 @@ from src.config.personas import SYSTEM_PROMPTS
 
 
 ACTION_DESCRIPTIONS = {
-    ActionType.PROPOSE: "Propose a new idea or policy",
+    ActionType.PROPOSE: "Propose a new idea or policy for the group to decide on",
     ActionType.COMMENT: "Comment on a proposal (specify proposal_id)",
-    ActionType.SUPPORT: "Express support for a proposal (specify proposal_id)",
-    ActionType.OPPOSE: "Express opposition to a proposal (specify proposal_id)",
-    ActionType.VOTE: "Vote on a proposal (specify proposal_id)",
+    ActionType.SUPPORT: "Express informal support for a proposal (discussion phase)",
+    ActionType.OPPOSE: "Express informal opposition to a proposal (discussion phase)",
+    ActionType.VOTE: "Cast a formal yes/no vote on a proposal (decision phase, content: yes/no)",
     ActionType.DO_NOTHING: "Do nothing this turn",
 }
 
@@ -53,6 +53,9 @@ class AgentManager:
         agent: Agent,
         timeline: str,
         warning: str = "",
+        current_turn: int = 0,
+        total_turns: int = 0,
+        proposals: list | None = None,
     ) -> Action:
         system_prompt = self._get_system_prompt(agent)
         user_prompt = self._build_user_prompt(timeline, warning)
@@ -61,14 +64,29 @@ class AgentManager:
 
     @staticmethod
     def _parse_response(response: str) -> Action:
+        text = re.sub(r"```(?:json)?\s*", "", response).strip()
         try:
-            data = json.loads(response)
+            data = json.loads(text)
+            if isinstance(data, list):
+                data = data[0] if data else {}
+        except (json.JSONDecodeError, ValueError):
+            try:
+                m = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+                if not m:
+                    return Action(ActionType.DO_NOTHING, "", "No JSON found")
+                data = json.loads(m.group())
+                if isinstance(data, list):
+                    data = data[0] if data else {}
+            except (json.JSONDecodeError, KeyError, IndexError, ValueError):
+                return Action(ActionType.DO_NOTHING, "", "Parse error")
+        try:
             action_type = ActionType[data["action"].upper()]
             return Action(
                 action_type=action_type,
                 content=data.get("content", ""),
                 rationale=data.get("rationale", ""),
                 proposal_id=data.get("proposal_id"),
+                votes=data.get("votes"),
             )
-        except (json.JSONDecodeError, KeyError):
-            return Action(ActionType.DO_NOTHING, content="", rationale="Parse error")
+        except KeyError:
+            return Action(ActionType.DO_NOTHING, "", "Parse error")
