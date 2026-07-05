@@ -65,7 +65,7 @@ class SocialGraph:
         if remainder > 0:
             sizes[-1] += remainder
         p_in = 0.6
-        p_out = 0.05
+        p_out = 0.15
         g = nx.stochastic_block_model(sizes, p_in * np.eye(n_communities) + p_out * (1 - np.eye(n_communities)), seed=seed)
         self._graph = self._to_directed(g)
 

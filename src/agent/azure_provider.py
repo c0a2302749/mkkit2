@@ -4,7 +4,7 @@ from src.agent.llm import LLMProvider
 
 
 class AzureProvider(LLMProvider):
-    def __init__(self):
+    def __init__(self, seed: int | None = None, temperature: float = 0.0):
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
         if not endpoint:
             raise KeyError("AZURE_OPENAI_ENDPOINT is not set")
@@ -21,16 +21,27 @@ class AzureProvider(LLMProvider):
             api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
         )
         self._deployment = deployment
+        self._seed = seed
+        self._temperature = temperature
+        self._last_fingerprint: str | None = None
+
+    @property
+    def last_fingerprint(self) -> str | None:
+        return self._last_fingerprint
 
     async def invoke(self, prompt: str, system_prompt: str = "") -> str:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        response = await self._client.chat.completions.create(
+        kwargs = dict(
             model=self._deployment,
             messages=messages,
-            temperature=0.7,
+            temperature=self._temperature,
             max_tokens=500,
         )
+        if self._seed is not None:
+            kwargs["seed"] = self._seed
+        response = await self._client.chat.completions.create(**kwargs)
+        self._last_fingerprint = getattr(response, "system_fingerprint", None)
         return response.choices[0].message.content or ""

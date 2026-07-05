@@ -1,10 +1,12 @@
 import asyncio
 import argparse
 import random
+import numpy as np
 from src.core.state import SimulationState
 from src.core.agent import Action
 from src.core.action import ActionType
 from src.config.personas import create_agent, PERSONAS
+from src.config.settings import LLM_SEED, LLM_TEMPERATURE, SCENARIO_CONTEXT
 from src.social.graph import SocialGraph
 from src.social.timeline import TimelineManager
 from src.agent.engine import OpinionDynamicsEngine
@@ -25,6 +27,7 @@ class StubProvider(LLMProvider):
 
 def setup_null_engine(n_agents: int, seed: int) -> SimulationEngine:
     random.seed(seed)
+    np.random.seed(seed)
     state = SimulationState()
     persona_cycle = [PERSONA_NAMES[i % len(PERSONA_NAMES)] for i in range(n_agents)]
     for i in range(n_agents):
@@ -65,12 +68,12 @@ def setup_null_engine(n_agents: int, seed: int) -> SimulationEngine:
     return engine
 
 
-def make_agent_manager(llm_backend: str) -> AgentManager:
+def make_agent_manager(llm_backend: str, seed: int = LLM_SEED, temperature: float = LLM_TEMPERATURE) -> AgentManager:
     if llm_backend == "stub":
         return AgentManager(StubProvider())
     try:
         from src.agent.azure_provider import AzureProvider
-        return AgentManager(AzureProvider())
+        return AgentManager(AzureProvider(seed=seed, temperature=temperature))
     except KeyError as e:
         raise RuntimeError(
             f"Azure OpenAI not configured: {e}. "
@@ -79,11 +82,12 @@ def make_agent_manager(llm_backend: str) -> AgentManager:
         )
 
 
-def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool, llm_backend: str) -> SimulationEngine:
+def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool, llm_backend: str, scenario_context: str = "") -> SimulationEngine:
     if is_null:
         return setup_null_engine(n_agents, seed)
 
     random.seed(seed)
+    np.random.seed(seed)
     state = SimulationState()
     persona_cycle = [PERSONA_NAMES[i % len(PERSONA_NAMES)] for i in range(n_agents)]
     for i in range(n_agents):
@@ -100,7 +104,7 @@ def setup_engine(n_agents: int, topology: str, seed: int, is_null: bool, llm_bac
     governance = GovernanceStub()
     agent_manager = make_agent_manager(llm_backend)
 
-    return SimulationEngine(state, graph, timeline, agent_manager, governance, ode)
+    return SimulationEngine(state, graph, timeline, agent_manager, governance, ode, scenario_context=scenario_context)
 
 
 async def main():
@@ -115,7 +119,11 @@ async def main():
                         help="LLM backend (azure or stub)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Output directory for logs (default: logs/)")
+    parser.add_argument("--scenario", type=str, default=SCENARIO_CONTEXT, nargs="?",
+                        help="Scenario context (default: data center discussion). Use --scenario \"\" to clear.")
     args = parser.parse_args()
+
+    scenario_context = args.scenario
 
     config = {
         "turns": args.turns,
@@ -124,9 +132,10 @@ async def main():
         "seed": args.seed,
         "null": args.null,
         "llm": args.llm,
+        "scenario": scenario_context,
     }
 
-    engine = setup_engine(args.agents, args.topology, args.seed, args.null)
+    engine = setup_engine(args.agents, args.topology, args.seed, args.null, args.llm, scenario_context=scenario_context)
     engine.state.total_turns = args.turns
     output = OutputManager(base_dir=args.log_dir)
 
@@ -146,7 +155,12 @@ async def main():
         print(f"\rTurn {turn_num}/{args.turns} | actions={n_actions} proposals={len(engine.state.proposals)} resolved={resolved}", end="", flush=True)
     print()
 
-    run_dir = output.save_all(config, engine.state.proposals)
+    if hasattr(engine.agent_manager._llm, "last_fingerprint"):
+        config["llm_fingerprint"] = engine.agent_manager._llm.last_fingerprint
+
+    vote_stats = turn_data_list[-1].get("vote_stats", {}) if turn_data_list else {}
+
+    run_dir = output.save_all(config, engine.state.proposals, agents=engine.state.agents, vote_stats=vote_stats)
 
     print(f"Results saved to: {run_dir}")
     for agent in engine.state.agents:

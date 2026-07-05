@@ -45,6 +45,7 @@ class OutputManager:
         opinions = [a.opinion for a in agents]
         risks = [a.risk_perception for a in agents]
         n = len(agents)
+        extreme = sum(1 for o in opinions if o <= 0.2 or o >= 0.8) / n if n else 0.0
         self._statistics.append({
             "turn": turn,
             "n_agents": n,
@@ -53,9 +54,10 @@ class OutputManager:
                 (sum((o - sum(opinions) / n) ** 2 for o in opinions) / n) ** 0.5, 4
             ) if n else 0.0,
             "avg_risk": round(sum(risks) / n, 4) if n else 0.0,
+            "extreme_ratio": round(extreme, 4),
         })
 
-    def save_all(self, config: dict, proposals: list | None = None) -> str:
+    def save_all(self, config: dict, proposals: list | None = None, agents: list | None = None, vote_stats: dict | None = None) -> str:
         actions_path = os.path.join(self._run_dir, "actions.json")
         with open(actions_path, "w", encoding="utf-8") as f:
             json.dump(self._actions, f, ensure_ascii=False, indent=2)
@@ -99,6 +101,27 @@ class OutputManager:
                 }
                 for p in proposals
             ]
+
+            resolved = [p for p in proposals if p.status.name != "OPEN"]
+            passed = [p for p in resolved if p.status.name == "PASSED"]
+            total_yes = sum(len(p.votes_for) for p in resolved)
+            total_no = sum(len(p.votes_against) for p in resolved)
+            total_votes = total_yes + total_no
+
+            voter_ids: set[int] = set()
+            for p in proposals:
+                voter_ids.update(p.votes_for)
+                voter_ids.update(p.votes_against)
+            n_agents = len(agents) if agents else 0
+
+            summary["vote_aggregate"] = {
+                "vote_result": "passed" if len(passed) > len(resolved) / 2 else "rejected",
+                "participation_rate": round(len(voter_ids) / n_agents, 4) if n_agents else 0.0,
+                "approval_rate": round(total_yes / total_votes, 4) if total_votes else 0.0,
+            }
+
+        if vote_stats:
+            summary["vote_stats"] = vote_stats
 
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)

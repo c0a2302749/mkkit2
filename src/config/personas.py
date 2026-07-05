@@ -71,7 +71,7 @@ PERSONAS: dict[str, dict] = {
         "bias": 0.0,
         "w_sys": 0.4,
         "w_sns": 0.6,
-        "initial_opinion": 0.45,
+        "initial_opinion": 0.5,
     },
     "risk_overestimator": {
         "persona_name": "risk_overestimator",
@@ -82,7 +82,7 @@ PERSONAS: dict[str, dict] = {
         "bias": 0.3,
         "w_sys": 0.6,
         "w_sns": 0.4,
-        "initial_opinion": 0.3,
+        "initial_opinion": 0.2,
     },
     "skeptic": {
         "persona_name": "skeptic",
@@ -93,7 +93,7 @@ PERSONAS: dict[str, dict] = {
         "bias": -0.2,
         "w_sys": 0.5,
         "w_sns": 0.5,
-        "initial_opinion": 0.5,
+        "initial_opinion": 0.4,
     },
     "agitator": {
         "persona_name": "agitator",
